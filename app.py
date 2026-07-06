@@ -12,8 +12,13 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 
-from google import genai
-from google.genai import types
+# Securely retrieve the key from Streamlit's secrets
+if "GEMINI_API_KEY" not in st.secrets:
+    st.error("🔒 Security Key Check Failed: Please provision 'GEMINI_API_KEY' in your Streamlit Secrets Panel.")
+    st.stop()
+
+# Initialize the stateful engine connectors
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 # =====================================================================
 # PAGE CONFIG
