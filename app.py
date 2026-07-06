@@ -67,9 +67,9 @@ LOGISTICS_TABLE = f"{PROJECT_ID}.{DATASET_ID}.logistics_events"
 
 @st.cache_resource
 def ensure_bq_resources():
-    dataset_ref = bigquery.Dataset(f"{PROJECT_ID}.{DATASET_ID}")
-    dataset_ref.location = "US"
-    bq_client.create_dataset(dataset_ref, exists_ok=True)
+    """Create tables only — dataset must already exist or be created manually."""
+    # Skip dataset creation — use an existing dataset or create it manually once
+    # Manually create dataset 'ecommerce_ops' in BigQuery console if it doesn't exist
     
     tx_schema = [
         bigquery.SchemaField("transaction_id", "STRING"),
@@ -85,8 +85,11 @@ def ensure_bq_resources():
     ]
     
     for table_id, schema in [(TRANSACTIONS_TABLE, tx_schema), (LOGISTICS_TABLE, log_schema)]:
-        table = bigquery.Table(table_id, schema=schema)
-        bq_client.create_table(table, exists_ok=True)
+        try:
+            table = bigquery.Table(table_id, schema=schema)
+            bq_client.create_table(table, exists_ok=True)
+        except Exception as e:
+            st.warning(f"Table setup note: {e}")
     return True
 
 ensure_bq_resources()
