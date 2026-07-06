@@ -1,16 +1,12 @@
-"""
-Autonomous Multi-Agent Supply Chain & Fraud Optimization System
------------------------------------------------------------------
-
-
 import time
 import importlib
 import concurrent.futures
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import networkx as nx
+from google import genai
+from google.genai import types
 
 # Securely retrieve the key from Streamlit's secrets
 if "GEMINI_API_KEY" not in st.secrets:
@@ -30,7 +26,7 @@ st.set_page_config(
 )
 
 st.title("🛡️ Autonomous Multi-Agent Supply Chain & Fraud Optimization System")
-st.caption("Multi-agent decisioning over cross-border transactions — GPU-accelerated scoring, "
+st.caption("Multi-agent decisioning over cross-border transactions - GPU-accelerated scoring, "
            "graph-based fraud ring detection, and Gemini-driven autonomous action.")
 
 # =====================================================================
@@ -38,22 +34,15 @@ st.caption("Multi-agent decisioning over cross-border transactions — GPU-accel
 # =====================================================================
 with st.sidebar:
     st.header("⚙️ Run Configuration")
-    num_transactions = st.slider("Transaction volume for this run", 100_000, 1_000_000, 500_000, step=100_000)
+    num_transactions = st.slider("Transaction volume for this run", 100000, 1000000, 500000, step=100000)
     num_logistics = int(num_transactions * 0.1)
     st.caption("Every number below this line is either measured live in this run, "
                "or explicitly marked as a reference benchmark. Nothing is faked silently.")
 
-if "GEMINI_API_KEY" not in st.secrets:
-    st.error("🔒 Missing 'GEMINI_API_KEY' in Streamlit secrets.")
-    st.stop()
-
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-
 # =====================================================================
-# AGENT 1: DATA LAYER — real BigQuery round-trip if credentials exist,
-# honestly-labeled local simulation otherwise
+# AGENT 1: DATA LAYER - Real BigQuery execution path
 # =====================================================================
-st.write("### 🗄️ Agent 1 — Data Ingestion Layer")
+st.write("### 🗄️ Agent 1 - Data Ingestion Layer")
 
 def make_synthetic_transactions(n):
     """Synthetic transaction generator with TWO deliberately separate fraud rings,
@@ -87,8 +76,7 @@ try:
     dataset_id = "hackathon_demo"
     table_id = f"{project}.{dataset_id}.transactions_raw"
 
-    # Ensure dataset/table exist, then load and read back — a genuine round-trip,
-    # not a query against a table that was never actually written.
+    # Ensure dataset/table exist, then load and read back
     bq_client.create_dataset(dataset_id, exists_ok=True)
     synth = make_synthetic_transactions(num_transactions)
     job = bq_client.load_table_from_dataframe(synth, table_id)
@@ -111,16 +99,14 @@ except Exception as e:
     df_tx = make_synthetic_transactions(num_transactions)
 
 # =====================================================================
-# AGENT 2: ACCELERATED PROCESSING — real cudf.pandas if a GPU runtime
-# is present, honest CPU fallback otherwise. Timing is MEASURED, not
-# formula-generated.
+# AGENT 2: ACCELERATED PROCESSING - real cudf.pandas execution path
 # =====================================================================
-st.write("### ⚡ Agent 2 — Accelerated Feature Engineering (RAPIDS cudf.pandas)")
+st.write("### ⚡ Agent 2 - Accelerated Feature Engineering (RAPIDS cudf.pandas)")
 
 def run_feature_pipeline(df):
-    """The exact same pandas-API code path either way — this is the whole point
-    of cudf.pandas' zero-code-change design. We just time whichever engine
-    is actually backing `pd` in this process."""
+    """The exact same pandas API code path either way - this is the whole point
+    of cudf pandas zero code change design. We just time whichever engine
+    is actually backing pd in this process."""
     out = df.copy()
     out["velocity_30m"] = np.where(
         out["device_id"].isin(["DEV_FRAUD_RING_A", "DEV_FRAUD_RING_B"]), 4900.0, 120.0
@@ -143,16 +129,14 @@ t0 = time.perf_counter()
 features_transactions = run_feature_pipeline(df_tx)
 measured_elapsed = time.perf_counter() - t0
 
-# Reference numbers from a prior controlled A/B benchmark (same code, same 500k rows,
-# cudf.pandas toggled on/off) — labeled explicitly as reference, not live, so nothing
-# implies these were computed in this run.
+# Reference numbers from a prior controlled A/B benchmark
 reference_cpu_500k = 71.40
 reference_gpu_500k = 1.55
 
 m1, m2, m3 = st.columns(3)
 with m1:
     st.metric(
-        label=f"This run — engine: {'cuDF (GPU)' if gpu_active else 'pandas (CPU)'}",
+        label=f"This run - engine: {'cuDF (GPU)' if gpu_active else 'pandas (CPU)'}",
         value=f"{measured_elapsed:.2f}s",
         help="Measured live in this session with time.perf_counter() around identical code."
     )
@@ -174,16 +158,15 @@ with m3:
 if not gpu_active:
     st.caption("ℹ️ No CUDA-capable GPU runtime detected in this environment, so this session is "
                "running on standard pandas. The reference benchmark above was captured separately "
-               "on GPU hardware with the identical code path — only `cudf.pandas.install()` differs.")
+               "on GPU hardware with the identical code path - only `cudf.pandas.install()` differs.")
 
 # =====================================================================
 # AGENT 3 & 4: CONCURRENT GRAPH FRAUD RING DETECTION + LOGISTICS SCORING
 # =====================================================================
-st.write("### 🕸️ Agent 3 & 4 — Graph Fraud-Ring Detection & Logistics Anomaly Scoring")
+st.write("### 🕸️ Agent 3 & 4 - Graph Fraud-Ring Detection & Logistics Anomaly Scoring")
 
 def agent_3_graph_fraud_rings(tx_df):
-    """Real connected-components graph analysis. Tries cuGraph first (GPU-accelerated
-    graph analytics, extra NVIDIA-stack credit), falls back to networkx honestly."""
+    """Real connected components graph analysis. Tries cuGraph first, falls back to networkx."""
     subset = tx_df.head(1000)  # bounded subset for interactive latency
     engine_used = "networkx (CPU)"
 
@@ -240,23 +223,21 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
 
 col_a, col_b = st.columns(2)
 with col_a:
-    st.markdown(f"**🔥 Agent 3 — Fraud Ring Graph Engine** (`{graph_engine}`)")
+    st.markdown(f"**🔥 Agent 3 - Fraud Ring Graph Engine** (`{graph_engine}`)")
     st.caption(f"{n_rings_found} distinct ring(s) detected via connected components on shared device fingerprints.")
     ring_rows = fraud_outputs[fraud_outputs["fraud_ring_id"] != "CLEAN_NODE"]
     st.dataframe(ring_rows.head(8), use_container_width=True, hide_index=True)
 with col_b:
-    st.markdown("**📦 Agent 4 — Logistics Anomaly Scoring**")
+    st.markdown("**📦 Agent 4 - Logistics Anomaly Scoring**")
     st.caption("Independent scoring stream running concurrently with Agent 3, not sequentially after it.")
     st.dataframe(logistics_scores.head(8), use_container_width=True, hide_index=True)
 
 # =====================================================================
 # AGENT 5 & 6: DECISION ORCHESTRATION + ACTION EXECUTION
-# Linked to the ACTUAL Agent 3/4 output — no disconnected hardcoded rows.
 # =====================================================================
-st.write("### 🧠 Agent 5 & 6 — Decision Orchestration (Gemini) & Action Execution")
+st.write("### 🧠 Agent 5 & 6 - Decision Orchestration (Gemini) & Action Execution")
 st.caption("Cases below are pulled directly from this run's Agent 3/4 output: the highest-risk "
-           "fraud rows, the highest-risk logistics rows, and a random mid-risk sample — not a "
-           "fixed demo table.")
+           "fraud rows, the highest-risk logistics rows, and a random mid-risk sample.")
 
 merged = fraud_outputs.merge(logistics_scores, left_on="transaction_id", right_on="order_id", how="left")
 merged["logistics_score"] = merged["logistics_score"].fillna(0.0)
@@ -284,6 +265,9 @@ tool_map = {
 action_logs = []
 for _, row in case_cases.iterrows():
     shipment_id = row.get("shipment_id", "SH_UNKNOWN") or "SH_UNKNOWN"
+    if pd.isna(shipment_id):
+        shipment_id = "SH_UNKNOWN"
+        
     prompt = f"""
     Evaluate this operational anomaly record and decide the single correct action.
 
@@ -293,9 +277,9 @@ for _, row in case_cases.iterrows():
     - Logistics disruption score (0-1): {row['logistics_score']:.4f}
 
     Governance rules:
-    1. If fraud score > 0.85 → call freeze_payout(order_id="{row['transaction_id']}", reason="<why>").
-    2. Else if logistics score > 0.80 → call reroute_shipment(shipment_id="{shipment_id}", priority_warehouse="Warehouse_Alpha").
-    3. Else if both scores are between 0.50 and 0.85 → call flag_for_manual_review(order_id="{row['transaction_id']}").
+    1. If fraud score > 0.85 -> call freeze_payout(order_id="{row['transaction_id']}", reason="High fraud score in {row['fraud_ring_id']}").
+    2. Else if logistics score > 0.80 -> call reroute_shipment(shipment_id="{shipment_id}", priority_warehouse="Warehouse_Alpha").
+    3. Else if both scores are between 0.50 and 0.85 -> call flag_for_manual_review(order_id="{row['transaction_id']}").
     4. Otherwise, respond with plain text explaining no action is needed.
     """
     decision_source = "Gemini tool call"
@@ -313,11 +297,10 @@ for _, row in case_cases.iterrows():
             result = tool_map[call.name](**call.args)
             func_name = call.name
         else:
-            decision_source = "Gemini — no action (below thresholds)"
+            decision_source = "Gemini - no action (below thresholds)"
             func_name = "none"
             result = "No action: risk indicators below actionable thresholds."
     except Exception:
-        # Explicit, rare fallback — framed honestly as resilience, not hidden as if Gemini decided it.
         decision_source = "Rule-engine fallback (Gemini call failed)"
         if row["fraud_score"] > 0.85:
             func_name = "freeze_payout"
@@ -340,11 +323,11 @@ for _, row in case_cases.iterrows():
 st.table(pd.DataFrame(action_logs))
 
 # =====================================================================
-# AGENT 7: LIVE RISK STREAM (honestly labeled — not claimed as embedded Looker)
+# AGENT 7: LIVE RISK STREAM
 # =====================================================================
 st.write("### 📊 Agent 7 — Real-Time Risk Stream")
 st.caption("Native Streamlit chart summarizing this run's outputs. In production this panel is "
-           "backed by a Looker dashboard over the same BigQuery tables — this prototype shows the "
+           "backed by a Looker dashboard over the same BigQuery tables - this prototype shows the "
            "underlying metrics rather than an embedded Looker iframe.")
 
 window_labels = [f"T-{i*2}m" for i in range(15)][::-1]
@@ -356,6 +339,6 @@ chart_data = pd.DataFrame({
 }).set_index("Window")
 st.line_chart(chart_data)
 
-st.success(f"🏁 Pipeline complete — {num_transactions:,} transactions processed "
+st.success(f"🏁 Pipeline complete - {num_transactions:,} transactions processed "
            f"({'GPU' if gpu_active else 'CPU'} engine, {'live' if use_real_bq else 'simulated'} BigQuery layer, "
            f"{n_rings_found} fraud ring(s) detected, {len(action_logs)} autonomous actions executed this run).")
