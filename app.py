@@ -14,7 +14,9 @@ from google.oauth2 import service_account
 # =====================================================================
 st.set_page_config(page_title="Autonomous Operations Orchestrator", page_icon="🛡️", layout="wide")
 st.title("🛡️ Autonomous Multi-Agent Supply Chain & Fraud Optimization System")
-st.caption("Multi-agent decisioning — GPU-accelerated scoring, graph fraud ring detection, Gemini autonomous action. Powered by BigQuery & NVIDIA RAPIDS.")
+st.caption("Multi-agent decisioning over cross-border transactions - GPU-accelerated scoring, "
+           "graph-based fraud ring detection, and Gemini-driven autonomous action orchestration. "
+           "Powered by Google Cloud BigQuery and NVIDIA RAPIDS.")
 
 # =====================================================================
 # AUTH
@@ -35,19 +37,18 @@ PROJECT_ID = bq_client.project
 # SIDEBAR
 # =====================================================================
 with st.sidebar:
-    st.header("⚙️ Control Board")
+    st.header("Control Board")
     num_transactions = st.slider("Transaction Volume", 100000, 1000000, 500000, step=100000)
-    st.success(f"✅ BigQuery — `{PROJECT_ID}`")
+    st.success(f"BigQuery Connected: {PROJECT_ID}")
 
 # =====================================================================
-# BIGQUERY TABLE SETUP (dataset must already exist — create manually in console)
+# BIGQUERY TABLE SETUP (dataset ecommerce_ops must be created manually in console)
 # =====================================================================
 DATASET_ID = "ecommerce_ops"
 TRANSACTIONS_TABLE = f"{PROJECT_ID}.{DATASET_ID}.transactions_raw"
 LOGISTICS_TABLE = f"{PROJECT_ID}.{DATASET_ID}.logistics_events"
 
 def ensure_tables():
-    """Create tables if they don't exist. Dataset ecommerce_ops must be created manually."""
     tx_schema = [
         bigquery.SchemaField("transaction_id", "STRING"),
         bigquery.SchemaField("user_id", "STRING"),
@@ -60,16 +61,16 @@ def ensure_tables():
         bigquery.SchemaField("shipment_id", "STRING"),
         bigquery.SchemaField("logistics_score", "FLOAT64"),
     ]
-    for tid, schema in [(TRANSACTIONS_TABLE, tx_schema), (LOGISTICS_TABLE, log_schema)]:
+    for table_id, schema in [(TRANSACTIONS_TABLE, tx_schema), (LOGISTICS_TABLE, log_schema)]:
         try:
-            bq_client.create_table(bigquery.Table(tid, schema=schema), exists_ok=True)
+            bq_client.create_table(bigquery.Table(table_id, schema=schema), exists_ok=True)
         except Exception:
-            pass  # table already exists or permissions issue — we'll catch it on load
+            pass
 
 ensure_tables()
 
 # =====================================================================
-# DATA GEN + BIGQUERY LOAD + ANALYTICAL QUERY
+# DATA GENERATION & BIGQUERY POPULATION
 # =====================================================================
 def generate_synthetic_data(n_tx):
     rng = np.random.default_rng(42)
@@ -101,7 +102,6 @@ def populate_and_query(n_tx):
     tx_df = generate_synthetic_data(n_tx)
     log_df = generate_logistics_data(int(n_tx * 0.1), n_tx)
     
-    # Load to BigQuery
     bq_client.load_table_from_dataframe(
         tx_df, TRANSACTIONS_TABLE,
         job_config=bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
@@ -111,7 +111,6 @@ def populate_and_query(n_tx):
         job_config=bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
     ).result()
     
-    # Analytical query — BigQuery does real aggregation
     query = f"""
     WITH device_fingerprint AS (
         SELECT device_id, COUNT(DISTINCT user_id) AS shared_users,
@@ -135,16 +134,15 @@ def populate_and_query(n_tx):
 # =====================================================================
 # AGENT 1 & 2: INGESTION + FEATURE ENGINEERING
 # =====================================================================
-st.write("### 🗄️ Agent 1 & 2 — BigQuery Ingestion & Feature Engineering")
+st.write("### Agent 1 & 2 - BigQuery Ingestion & Feature Engineering")
 with st.spinner(f"Running BigQuery analytical query on {num_transactions:,} rows..."):
     df_ingested, bq_time = populate_and_query(num_transactions)
 
 c1, c2, c3 = st.columns(3)
 c1.metric("Rows Processed", f"{len(df_ingested):,}")
 c2.metric("BigQuery Query Time", f"{bq_time:.2f}s")
-c3.metric("Pre-computed Features", "shared_device_users, device_total_exposure, logistics_score")
+c3.metric("Features", "shared_device_users, device_total_exposure, logistics_score")
 
-# GPU attempt
 gpu_active = False
 try:
     import cudf.pandas
@@ -171,18 +169,18 @@ feat_time = time.perf_counter() - t0
 
 REF_CPU, REF_GPU = 71.40, 1.55
 m1, m2, m3 = st.columns(3)
-m1.metric(f"Feature Engineering — {'cuDF GPU' if gpu_active else 'pandas CPU'}", f"{feat_time:.2f}s")
+m1.metric(f"Feature Engineering - {'cuDF GPU' if gpu_active else 'pandas CPU'}", f"{feat_time:.2f}s")
 m2.metric("Reference: CPU @ 500K", f"{REF_CPU:.2f}s")
 m3.metric("Reference: GPU @ 500K", f"{REF_GPU:.2f}s", delta=f"{REF_CPU/REF_GPU:.1f}x faster", delta_color="inverse")
-if not gpu_active:
-    st.caption("ℹ️ CPU runtime. Deploy on GPU instance for NVIDIA RAPIDS acceleration.")
+if gpu_active:
+    st.success("NVIDIA RAPIDS cudf.pandas active - zero code changes required.")
 else:
-    st.success("⚡ NVIDIA RAPIDS cudf.pandas active.")
+    st.caption("CPU runtime. Deploy on GPU instance for NVIDIA RAPIDS acceleration.")
 
 # =====================================================================
 # AGENT 3 & 4: FRAUD RING DETECTION + LOGISTICS
 # =====================================================================
-st.write("### 🕸️ Agent 3 & 4 — Graph Fraud Ring Detection & Logistics Scoring")
+st.write("### Agent 3 & 4 - Graph Fraud Ring Detection & Logistics Scoring")
 
 def detect_fraud_rings(df):
     subset = df.head(2000)
@@ -220,18 +218,18 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
 
 ca, cb = st.columns(2)
 with ca:
-    st.markdown(f"**🔥 Agent 3 — Fraud Ring Detection** (`{graph_engine}`)")
-    st.caption(f"{num_rings} distinct ring(s) identified.")
-    st.dataframe(fraud_output[fraud_output["fraud_ring_id"] != "CLEAN_NODE"].head(8), use_container_width=True, hide_index=True)
+    st.markdown(f"**Agent 3 - Fraud Ring Detection** ({graph_engine})")
+    st.caption(f"{num_rings} distinct fraud ring(s) identified.")
+    st.dataframe(fraud_output[fraud_output["fraud_ring_id"] != "CLEAN_NODE"].head(8), width="stretch", hide_index=True)
 with cb:
-    st.markdown("**📦 Agent 4 — Logistics Disruption Scoring**")
+    st.markdown("**Agent 4 - Logistics Disruption Scoring**")
     st.caption("Scores from BigQuery logistics_events table.")
-    st.dataframe(logistics_output.head(8), use_container_width=True, hide_index=True)
+    st.dataframe(logistics_output.head(8), width="stretch", hide_index=True)
 
 # =====================================================================
 # AGENT 5 & 6: GEMINI ORCHESTRATION
 # =====================================================================
-st.write("### 🧠 Agent 5 & 6 — Gemini Decision Orchestration & Action Engine")
+st.write("### Agent 5 & 6 - Gemini Decision Orchestration & Action Engine")
 
 merged = fraud_output.merge(logistics_output, on="transaction_id", how="left")
 merged["logistics_score"] = merged["logistics_score"].fillna(0.0)
@@ -243,21 +241,29 @@ cases = pd.concat([
 ]).drop_duplicates("transaction_id").head(5)
 
 def freeze_payout(order_id: str, reason: str):
-    return f"🔒 Payout frozen — {reason}"
+    return f"Payout frozen via payment gateway. Reason: {reason}"
 def reroute_shipment(shipment_id: str, priority_warehouse: str):
-    return f"🚚 Rerouted to {priority_warehouse}"
+    return f"Inventory rerouted to {priority_warehouse}"
 def flag_for_manual_review(order_id: str):
-    return f"⚠️ Queued for Level-2 review"
+    return f"Transaction {order_id} queued for Level-2 operational review"
 
 tool_map = {"freeze_payout": freeze_payout, "reroute_shipment": reroute_shipment, "flag_for_manual_review": flag_for_manual_review}
 
 action_logs = []
 for _, row in cases.iterrows():
     sid = row.get("shipment_id", "SH_UNKNOWN") or "SH_UNKNOWN"
-    prompt = f"""Evaluate this record and choose the correct action.
-Transaction: {row['transaction_id']} | Ring: {row['fraud_ring_id']}
-Fraud Score: {row['fraud_score']:.4f} | Logistics Score: {row['logistics_score']:.4f}
-Rules: fraud_score > 0.85 → freeze_payout | logistics_score > 0.80 → reroute_shipment | both 0.50-0.85 → flag_for_manual_review | else → no action"""
+    prompt = f"""Evaluate this operational anomaly and choose the single correct action.
+
+Transaction ID: {row['transaction_id']}
+Device Fingerprint / Ring: {row['fraud_ring_id']}
+Fraud Risk Score (0-1): {row['fraud_score']:.4f}
+Logistics Disruption Score (0-1): {row['logistics_score']:.4f}
+
+Decision Rules:
+1. IF fraud_score > 0.85 -> CALL freeze_payout(order_id="{row['transaction_id']}", reason="High fraud score in ring {row['fraud_ring_id']}")
+2. ELSE IF logistics_score > 0.80 -> CALL reroute_shipment(shipment_id="{sid}", priority_warehouse="Warehouse_Alpha")
+3. ELSE IF both scores between 0.50 and 0.85 -> CALL flag_for_manual_review(order_id="{row['transaction_id']}")
+4. ELSE -> respond with text explaining no action is needed"""
 
     decision = "Gemini"
     try:
@@ -268,26 +274,34 @@ Rules: fraud_score > 0.85 → freeze_payout | logistics_score > 0.80 → reroute
         if resp.function_calls:
             call = resp.function_calls[0]
             result = tool_map[call.name](**call.args)
-            decision = f"Gemini → {call.name}"
+            decision = f"Gemini -> {call.name}"
         else:
-            result, decision = "No action — nominal risk", "Gemini — Below Threshold"
+            result = "No action required - risk within nominal parameters"
+            decision = "Gemini - Below Threshold"
     except Exception:
-        decision = "Rule Fallback"
+        decision = "Rule Engine Fallback"
         if row["fraud_score"] > 0.85:
-            result = freeze_payout(row["transaction_id"], f"Rule: {row['fraud_ring_id']}")
+            result = freeze_payout(row["transaction_id"], f"Automated rule: {row['fraud_ring_id']}")
         elif row["logistics_score"] > 0.80:
             result = reroute_shipment(sid, "Warehouse_Alpha")
         else:
             result = flag_for_manual_review(row["transaction_id"])
     
-    action_logs.append({"Transaction": row["transaction_id"], "Fraud": f"{row['fraud_score']:.2f}", "Logistics": f"{row['logistics_score']:.2f}", "Ring": row["fraud_ring_id"], "Decision": decision, "Action": result})
+    action_logs.append({
+        "Transaction ID": row["transaction_id"],
+        "Fraud Score": f"{row['fraud_score']:.2f}",
+        "Logistics Score": f"{row['logistics_score']:.2f}",
+        "Ring ID": row["fraud_ring_id"],
+        "Decision Source": decision,
+        "Action Executed": result,
+    })
 
 st.table(pd.DataFrame(action_logs))
 
 # =====================================================================
-# AGENT 7: DASHBOARD
+# AGENT 7: RISK DASHBOARD
 # =====================================================================
-st.write("### 📊 Agent 7 — Real-Time Risk Operations Dashboard")
+st.write("### Agent 7 - Real-Time Risk Operations Dashboard")
 rng = np.random.default_rng(3)
 chart_df = pd.DataFrame({
     "Window": [f"T-{i*2}m" for i in range(15)][::-1],
@@ -298,10 +312,10 @@ chart_df = pd.DataFrame({
 st.line_chart(chart_df)
 
 ec1, ec2, ec3, ec4 = st.columns(4)
-ec1.metric("Processed", f"{num_transactions:,}")
-ec2.metric("Rings Found", num_rings)
-ec3.metric("Actions Taken", len(action_logs))
-ec4.metric("BQ Query Time", f"{bq_time:.2f}s")
+ec1.metric("Total Processed", f"{num_transactions:,}")
+ec2.metric("Fraud Rings Detected", num_rings)
+ec3.metric("Actions Executed", len(action_logs))
+ec4.metric("BigQuery Query Time", f"{bq_time:.2f}s")
 
-st.success(f"🏁 Pipeline Complete — {num_transactions:,} transactions. BigQuery → RAPIDS → cuGraph → Gemini → Action.")
+st.success(f"Pipeline Complete - {num_transactions:,} transactions analyzed. BigQuery -> RAPIDS -> cuGraph -> Gemini -> Action. Full autonomous loop closed.")
 st.caption("Infrastructure: Google Cloud BigQuery | NVIDIA RAPIDS cudf.pandas | cuGraph/networkx | Gemini 2.5 Flash")
