@@ -17,19 +17,7 @@ st.title("🛡️ Autonomous Multi-Agent Supply Chain & Fraud Optimization Syste
 st.subheader("Sponsored by NVIDIA & Google Cloud Enterprise Agent Platform")
 st.markdown("---")
 
-# Sidebar configurations for API Keys & Data Scaling parameters
-with st.sidebar:
-    st.header("🔑 System Credentials")
-    api_key_input = st.text_input("Enter Gemini API Key", type="password")
-    
-    st.header("⚙️ Simulation Settings")
-    num_transactions = st.slider("Transaction Data Scale Stream (Rows)", 100000, 1000000, 500000, step=100000)
-    num_logistics = int(num_transactions * 0.1)
 
-# Check if API Key is configured before unlocking the pipeline
-if not api_key_input:
-    st.warning("Please enter your Gemini API Key in the left sidebar configuration panel to engage the multi-agent system workflow.")
-    st.stop()
 
 # Initialize the stateful client connection
 client = genai.Client(api_key=api_key_input)
