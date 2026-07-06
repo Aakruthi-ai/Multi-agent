@@ -9,18 +9,12 @@ from google.genai import types
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-# =====================================================================
-# PAGE CONFIG
-# =====================================================================
 st.set_page_config(page_title="Autonomous Operations Orchestrator", page_icon="🛡️", layout="wide")
 st.title("🛡️ Autonomous Multi-Agent Supply Chain & Fraud Optimization System")
 st.caption("Multi-agent decisioning over cross-border transactions - GPU-accelerated scoring, "
            "graph-based fraud ring detection, and Gemini-driven autonomous action orchestration. "
            "Powered by Google Cloud BigQuery and NVIDIA RAPIDS.")
 
-# =====================================================================
-# AUTH
-# =====================================================================
 if "GEMINI_API_KEY" not in st.secrets or "gcp_service_account" not in st.secrets:
     st.error("Missing secrets. Add GEMINI_API_KEY and [gcp_service_account] in Streamlit Secrets.")
     st.stop()
@@ -33,17 +27,11 @@ credentials = service_account.Credentials.from_service_account_info(sa_info)
 bq_client = bigquery.Client(credentials=credentials, project=sa_info.get("project_id"))
 PROJECT_ID = bq_client.project
 
-# =====================================================================
-# SIDEBAR
-# =====================================================================
 with st.sidebar:
     st.header("Control Board")
     num_transactions = st.slider("Transaction Volume", 100000, 1000000, 500000, step=100000)
     st.success(f"BigQuery Connected: {PROJECT_ID}")
 
-# =====================================================================
-# BIGQUERY TABLE SETUP (dataset ecommerce_ops must be created manually in console)
-# =====================================================================
 DATASET_ID = "ecommerce_ops"
 TRANSACTIONS_TABLE = f"{PROJECT_ID}.{DATASET_ID}.transactions_raw"
 LOGISTICS_TABLE = f"{PROJECT_ID}.{DATASET_ID}.logistics_events"
@@ -69,9 +57,6 @@ def ensure_tables():
 
 ensure_tables()
 
-# =====================================================================
-# DATA GENERATION & BIGQUERY POPULATION
-# =====================================================================
 def generate_synthetic_data(n_tx):
     rng = np.random.default_rng(42)
     df = pd.DataFrame({
@@ -131,9 +116,6 @@ def populate_and_query(n_tx):
     result = bq_client.query(query).to_dataframe()
     return result, time.perf_counter() - q_start
 
-# =====================================================================
-# AGENT 1 & 2: INGESTION + FEATURE ENGINEERING
-# =====================================================================
 st.write("### Agent 1 & 2 - BigQuery Ingestion & Feature Engineering")
 with st.spinner(f"Running BigQuery analytical query on {num_transactions:,} rows..."):
     df_ingested, bq_time = populate_and_query(num_transactions)
@@ -177,9 +159,6 @@ if gpu_active:
 else:
     st.caption("CPU runtime. Deploy on GPU instance for NVIDIA RAPIDS acceleration.")
 
-# =====================================================================
-# AGENT 3 & 4: FRAUD RING DETECTION + LOGISTICS
-# =====================================================================
 st.write("### Agent 3 & 4 - Graph Fraud Ring Detection & Logistics Scoring")
 
 def detect_fraud_rings(df):
@@ -226,9 +205,6 @@ with cb:
     st.caption("Scores from BigQuery logistics_events table.")
     st.dataframe(logistics_output.head(8), width="stretch", hide_index=True)
 
-# =====================================================================
-# AGENT 5 & 6: GEMINI ORCHESTRATION
-# =====================================================================
 st.write("### Agent 5 & 6 - Gemini Decision Orchestration & Action Engine")
 
 merged = fraud_output.merge(logistics_output, on="transaction_id", how="left")
@@ -298,9 +274,6 @@ Decision Rules:
 
 st.table(pd.DataFrame(action_logs))
 
-# =====================================================================
-# AGENT 7: RISK DASHBOARD
-# =====================================================================
 st.write("### Agent 7 - Real-Time Risk Operations Dashboard")
 rng = np.random.default_rng(3)
 chart_df = pd.DataFrame({
@@ -317,5 +290,5 @@ ec2.metric("Fraud Rings Detected", num_rings)
 ec3.metric("Actions Executed", len(action_logs))
 ec4.metric("BigQuery Query Time", f"{bq_time:.2f}s")
 
-st.success(f"Pipeline Complete - {num_transactions:,} transactions analyzed. BigQuery -> RAPIDS -> cuGraph -> Gemini -> Action. Full autonomous loop closed.")
+st.success(f"Pipeline Complete - {num_transactions:,} transactions analyzed. BigQuery -> RAPIDS -> cuGraph -> Gemini -> Action.")
 st.caption("Infrastructure: Google Cloud BigQuery | NVIDIA RAPIDS cudf.pandas | cuGraph/networkx | Gemini 2.5 Flash")
